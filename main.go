@@ -465,7 +465,7 @@ func initStockData(ctx context.Context) {
 func checkDir(dir string) {
 	_, err := os.Stat(dir)
 	if os.IsNotExist(err) {
-		os.Mkdir(dir, os.ModePerm)
+		os.Mkdir(dir, 0700)
 		log.SugaredLogger.Info("create dir: " + dir)
 	}
 	if BuildKey == "" {

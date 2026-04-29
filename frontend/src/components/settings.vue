@@ -575,7 +575,7 @@ function deletePrompt(ID) {
             </n-form-item-gi>
 
             <n-form-item-gi :span="11" label="提示词广场地址：" path="promptPlazaApiBase">
-              <n-input type="text" placeholder="http://go-stock.sparkmemory.top:1918/api" v-model:value="formValue.promptPlazaApiBase" clearable/>
+              <n-input type="text" placeholder="https://go-stock.sparkmemory.top:1918/api" v-model:value="formValue.promptPlazaApiBase" clearable/>
               <n-tooltip placement="top">
                 <template #trigger>
                   <n-icon color="#0e7a0d" size="20">
@@ -586,7 +586,7 @@ function deletePrompt(ID) {
                   <n-gradient-text :type="'warning'">
                   <div style="max-width: 400px;text-align: left">
                     提示词广场服务接口地址<br>
-                    默认: http://go-stock.sparkmemory.top:1918/api<br>
+                    默认: https://go-stock.sparkmemory.top:1918/api<br>
                     如已部署提示词广场服务，可修改为实际地址
                   </div>
                   </n-gradient-text>

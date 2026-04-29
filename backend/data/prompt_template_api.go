@@ -120,7 +120,7 @@ func (t PromptTemplateApi) DelPrompt(Id uint) string {
 func (t PromptTemplateApi) GetPromptTemplateByID(id int) string {
 	prompt := &models.PromptTemplate{}
 	db.Dao.Model(&models.PromptTemplate{}).Where("id=?", id).First(prompt)
-	logger.SugaredLogger.Infof("GetPromptTemplateByID:%d %s", id, prompt.Content)
+	logger.SugaredLogger.Debugf("GetPromptTemplateByID:%d", id)
 	return prompt.Content
 }
 func NewPromptTemplateApi() *PromptTemplateApi {

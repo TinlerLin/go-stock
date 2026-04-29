@@ -6,8 +6,8 @@ package data
 import (
 	"fmt"
 	"go-stock/backend/logger"
-
 	"os/exec"
+	"strings"
 )
 
 // AlertWindowsApi @Author 2lovecode
@@ -39,7 +39,9 @@ func (a AlertWindowsApi) SendNotification() bool {
 		return false
 	}
 
-	script := fmt.Sprintf(`display notification "%s" with title "%s"`, a.Content, a.Title)
+	content := strings.ReplaceAll(a.Content, `"`, `\"`)
+	title := strings.ReplaceAll(a.Title, `"`, `\"`)
+	script := fmt.Sprintf(`display notification "%s" with title "%s"`, content, title)
 
 	cmd := exec.Command("osascript", "-e", script)
 	err := cmd.Run()

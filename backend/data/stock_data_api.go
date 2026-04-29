@@ -38,7 +38,7 @@ import (
 const sinaStockUrl = "http://hq.sinajs.cn/rn=%d&list=%s"
 const txStockUrl = "http://qt.gtimg.cn/?_=%d&q=%s"
 
-const tushareApiUrl = "http://api.tushare.pro"
+const tushareApiUrl = "https://api.tushare.pro"
 
 type StockDataApi struct {
 	client *resty.Client

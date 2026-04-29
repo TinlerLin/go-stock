@@ -811,11 +811,11 @@ async function ensureVipInfo() {
 
 async function togglePanel() {
   if (!panelVisible.value) {
-    await ensureVipInfo()
-    if ((vipLevel.value ?? 0) < 2) {
-      message.warning('go-stock AI Agent 助手功能仅对 VIP2 及以上赞助用户开放，请前往关于页面查看赞助方式。')
-      return
-    }
+    // await ensureVipInfo()
+    // if ((vipLevel.value ?? 0) < 2) {
+    //   message.warning('go-stock AI Agent 助手功能仅对 VIP2 及以上赞助用户开放，请前往关于页面查看赞助方式。')
+    //   return
+    // }
     openPanel()
   } else {
     closePanel()

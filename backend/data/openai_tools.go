@@ -270,14 +270,14 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 				}
 			} else {
 				if err != nil {
-					logger.SugaredLogger.Infof("Stream data error : %s", err.Error())
+					logger.SugaredLogger.Debugf("Stream data error : %s", err.Error())
 					ch <- map[string]any{
 						"code":     0,
 						"question": question,
 						"content":  err.Error(),
 					}
 				} else {
-					logger.SugaredLogger.Infof("Stream data error : %s", data)
+					logger.SugaredLogger.Debugf("Stream data error : %s", data)
 					ch <- map[string]any{
 						"code":     0,
 						"question": question,
@@ -287,7 +287,7 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 			}
 		} else {
 			if strutil.RemoveNonPrintable(line) != "" {
-				logger.SugaredLogger.Infof("Stream data error : %s", line)
+				logger.SugaredLogger.Debugf("Stream data error : %s", line)
 				res := &models.Resp{}
 				if err := json.Unmarshal([]byte(line), res); err == nil {
 					msg := res.Message
@@ -495,14 +495,14 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 				}
 			} else {
 				if err != nil {
-					logger.SugaredLogger.Infof("Stream data error : %s", err.Error())
+					logger.SugaredLogger.Debugf("Stream data error : %s", err.Error())
 					ch <- map[string]any{
 						"code":     0,
 						"question": question,
 						"content":  err.Error(),
 					}
 				} else {
-					logger.SugaredLogger.Infof("Stream data error : %s", data)
+					logger.SugaredLogger.Debugf("Stream data error : %s", data)
 					ch <- map[string]any{
 						"code":     0,
 						"question": question,
@@ -512,7 +512,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 			}
 		} else {
 			if strutil.RemoveNonPrintable(line) != "" {
-				logger.SugaredLogger.Infof("Stream data error : %s", line)
+				logger.SugaredLogger.Debugf("Stream data error : %s", line)
 				res := &models.Resp{}
 				if err := json.Unmarshal([]byte(line), res); err == nil {
 					msg := res.Message

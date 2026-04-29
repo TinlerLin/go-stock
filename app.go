@@ -377,7 +377,7 @@ func (a *App) isVip(sponsorCode string, downloadUrl string, releaseVersion *mode
 func (a *App) syncNews() {
 	defer PanicHandler()
 	client := resty.New()
-	url := fmt.Sprintf("http://go-stock.sparkmemory.top:16666/FinancialNews/json?since=%d", time.Now().Add(-24*time.Hour).Unix())
+	url := fmt.Sprintf("https://go-stock.sparkmemory.top:16666/FinancialNews/json?since=%d", time.Now().Add(-24*time.Hour).Unix())
 	//logger.SugaredLogger.Infof("syncNews:%s", url)
 	resp, err := client.R().SetDoNotParseResponse(true).Get(url)
 	body := resp.RawBody()
@@ -1808,7 +1808,7 @@ func (a *App) ExportConfig() string {
 		logger.SugaredLogger.Errorf("导出配置文件失败:%s", err.Error())
 		return err.Error()
 	}
-	err = os.WriteFile(file, []byte(config), os.ModePerm)
+	err = os.WriteFile(file, []byte(config), 0600)
 	if err != nil {
 		logger.SugaredLogger.Errorf("导出配置文件失败:%s", err.Error())
 		return err.Error()
@@ -1827,7 +1827,7 @@ func (a *App) ShareAnalysis(stockCode, stockName string) string {
 			"stockCode":    stockCode,
 			"stockName":    stockName,
 			"analysisTime": analysisTime,
-		}).Post("http://go-stock.sparkmemory.top:16688/upload")
+		}).Post("https://go-stock.sparkmemory.top:16688/upload")
 		if err != nil {
 			return err.Error()
 		}
@@ -1853,7 +1853,7 @@ func (a *App) ShareText(text, title string) string {
 		"stockCode":    title,
 		"stockName":    title,
 		"analysisTime": analysisTime,
-	}).Post("http://go-stock.sparkmemory.top:16688/upload")
+	}).Post("https://go-stock.sparkmemory.top:16688/upload")
 	if err != nil {
 		return err.Error()
 	}
@@ -2276,7 +2276,7 @@ func (a *App) SaveImage(name, base64Data string) string {
 		return "文件内容异常,无法保存。" + err.Error()
 	}
 
-	err = os.WriteFile(filepath.Clean(filePath), decodeString, os.ModePerm)
+	err = os.WriteFile(filepath.Clean(filePath), decodeString, 0644)
 	if err != nil {
 		return "保存结果异常,无法保存。"
 	}
@@ -2321,7 +2321,7 @@ func (a *App) SaveWordFile(filename string, base64Data string) string {
 	if err != nil {
 		return "文件内容异常,无法保存。" + err.Error()
 	}
-	err = os.WriteFile(filepath.Clean(filePath), decodeString, 0777)
+	err = os.WriteFile(filepath.Clean(filePath), decodeString, 0644)
 	if err != nil {
 		return "保存结果异常,无法保存。"
 	}

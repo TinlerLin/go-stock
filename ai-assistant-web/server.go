@@ -293,7 +293,7 @@ func (a *app) shareText(w http.ResponseWriter, r *http.Request) {
 		"stockCode":    req.Title,
 		"stockName":    req.Title,
 		"analysisTime": analysisTime,
-	}).Post("http://go-stock.sparkmemory.top:16688/upload")
+	}).Post("https://go-stock.sparkmemory.top:16688/upload")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -347,7 +347,7 @@ func getAddr() string {
 func checkDir(dir string) {
 	_, err := os.Stat(dir)
 	if os.IsNotExist(err) {
-		_ = os.Mkdir(dir, os.ModePerm)
+		_ = os.Mkdir(dir, 0700)
 	}
 }
 
@@ -359,7 +359,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
 		if r.Method == http.MethodOptions {

@@ -36,7 +36,7 @@ func (DingDingAPI) SendDingDingMessage(message string) string {
 		logger.SugaredLogger.Error(err.Error())
 		return "发送钉钉消息失败"
 	}
-	logger.SugaredLogger.Infof("send dingding message: %s", resp.String())
+	logger.SugaredLogger.Infof("send dingding message: status=%d", resp.StatusCode())
 	return "发送钉钉消息成功"
 }
 
@@ -71,7 +71,7 @@ func (DingDingAPI) SendToDingDing(title, message string) string {
 		logger.SugaredLogger.Error(err.Error())
 		return "发送钉钉消息失败"
 	}
-	logger.SugaredLogger.Infof("send dingding message: %s", resp.String())
+	logger.SugaredLogger.Infof("send dingding message: status=%d", resp.StatusCode())
 	return "发送钉钉消息成功"
 }
 

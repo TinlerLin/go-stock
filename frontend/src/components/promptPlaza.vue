@@ -11,7 +11,7 @@ const dialog = useDialog()
 
 const darkTheme = ref(false)
 const editorTheme = ref('light')
-const apiBase = ref('http://go-stock.sparkmemory.top:1918/api')
+const apiBase = ref('https://go-stock.sparkmemory.top:1918/api')
 const token = ref(localStorage.getItem('promptPlazaToken') || '')
 const currentUser = ref(null)
 const categories = ref([])
@@ -44,7 +44,7 @@ const loginModal = reactive({
   show: false,
   tab: 'login',
   username: localStorage.getItem('promptPlazaUsername') || '',
-  password: localStorage.getItem('promptPlazaPassword') || '',
+  password: '',  // 不再从 localStorage 恢复密码（避免明文存储敏感信息）
   nickname: ''
 })
 
@@ -236,9 +236,9 @@ async function handleLogin() {
     token.value = data.token
     localStorage.setItem('promptPlazaToken', data.token)
     localStorage.setItem('promptPlazaUsername', loginModal.username)
-    localStorage.setItem('promptPlazaPassword', loginModal.password)
     currentUser.value = data.user
     loginModal.show = false
+    loginModal.password = ''
     message.success('登录成功')
     loadPrompts()
   } catch (e) {
@@ -256,7 +256,6 @@ async function handleRegister() {
     token.value = data.token
     localStorage.setItem('promptPlazaToken', data.token)
     localStorage.setItem('promptPlazaUsername', loginModal.username)
-    localStorage.setItem('promptPlazaPassword', loginModal.password)
     currentUser.value = data.user
     loginModal.show = false
     loginModal.username = ''
@@ -278,7 +277,9 @@ function handleLogout() {
     onPositiveClick: () => {
       token.value = ''
       localStorage.removeItem('promptPlazaToken')
+      localStorage.removeItem('promptPlazaUsername')
       currentUser.value = null
+      loginModal.password = ''
       message.success('已退出登录')
       loadPrompts()
     }

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(wails version *)",
+      "Bash(npm --version)",
+      "Bash(go version *)"
+    ]
+  }
+}
