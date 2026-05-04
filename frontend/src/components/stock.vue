@@ -6,6 +6,7 @@ import {
   AddStockGroup,
   Follow,
   GetAiConfigs,
+  GetAllSkills,
   GetAIResponseResult,
   GetConfig,
   GetEffectiveSponsorVip,
@@ -14,6 +15,7 @@ import {
   GetPromptTemplates,
   GetStockKLine,
   GetStockList,
+  GetStockIndustryChainAnalysis,
   GetStockMinutePriceLineData,
   GetVersionInfo,
   Greet,
@@ -96,6 +98,7 @@ const handleProgress = (progress) => {
 };
 const enableEditor = ref(false)
 const mdPreviewRef = ref(null)
+const industryPreviewRef = ref(null)
 const mdEditorRef = ref(null)
 const tipsRef = ref(null)
 const message = useMessage()
@@ -112,6 +115,7 @@ const modalShow3 = ref(false)
 const modalShow4 = ref(false)
 const modalShow5 = ref(false)
 const modalShow6 = ref(false)
+const modalShow7 = ref(false)
 const lwKlineCode = ref('')
 const lwKlineName = ref('')
 const currentStockTradingPrice = ref({
@@ -145,6 +149,8 @@ const promptTemplates = ref([])
 const aiConfigs = ref([])
 const sysPromptOptions = ref([])
 const userPromptOptions = ref([])
+const skillOptions = ref([])
+const selectedSkillIds = ref([])
 const data = reactive({
   modelName: "",
   chatId: "",
@@ -162,7 +168,9 @@ const data = reactive({
   loading: true,
   enableDanmu: false,
   darkTheme: false,
-  changePercent: 0
+  changePercent: 0,
+  industryChainResult: "",
+  industryChainLoading: false
 })
 const feishiInterval = ref(null)
 
@@ -356,6 +364,14 @@ onBeforeMount(() => {
     sysPromptOptions.value = promptTemplates.value.filter(item => item.type === '模型系统Prompt')
     userPromptOptions.value = promptTemplates.value.filter(item => item.type === '模型用户Prompt')
 
+  })
+
+  GetAllSkills().then(res => {
+    const list = Array.isArray(res) ? res : []
+    skillOptions.value = list.filter(s => s.Enable || s.enable).map(s => ({
+      label: (s.Name ?? s.name ?? '') + (s.Category ?? s.category ? ' [' + (s.Category ?? s.category) + ']' : ''),
+      value: s.ID ?? s.id
+    }))
   })
 
   GetAiConfigs().then(res => {
@@ -1588,6 +1604,21 @@ function showMoney(code, name) {
   modalShow5.value = true
 }
 
+function showIndustryChainAnalysis(code, name) {
+  data.code = code
+  data.name = name
+  data.industryChainResult = ""
+  data.industryChainLoading = true
+  modalShow7.value = true
+  GetStockIndustryChainAnalysis(code, name).then(res => {
+    data.industryChainResult = res || "暂无产业链分析结果"
+  }).catch(err => {
+    data.industryChainResult = "产业链分析获取失败：" + (err?.message || err)
+  }).finally(() => {
+    data.industryChainLoading = false
+  })
+}
+
 /** 新浪/应用内代码转为东方财富接口常用格式（如 600519.SH） */
 function toEastMoneyCode(code) {
   if (!code) return ''
@@ -1877,7 +1908,7 @@ function aiReCheckStock(stock, stockCode) {
   //
 
   //message.info("sysPromptId:"+data.sysPromptId)
-  NewChatStream(stock, stockCode, data.question, data.aiConfigId, data.sysPromptId, enableTools.value,thinkingMode.value)
+  NewChatStream(stock, stockCode, data.question, data.aiConfigId, data.sysPromptId, enableTools.value, thinkingMode.value, selectedSkillIds.value)
 }
 
 function aiCheckStock(stock, stockCode) {
@@ -2391,6 +2422,9 @@ watch(modalShow6, (newVal) => {
                 <n-button size="tiny" type="error" v-if="result['买一报价']>0"
                           @click="showMoney(result['股票代码'],result['股票名称'])"> 资金
                 </n-button>
+                <n-button size="tiny" type="warning"
+                          @click="showIndustryChainAnalysis(result['股票代码'],result['股票名称'])"> 产业链
+                </n-button>
                 <n-button size="tiny" type="success" @click="search(result['股票代码'],result['股票名称'])"> 详情
                 </n-button>
                 <n-button v-if="result['买一报价']>0" size="tiny" type="success"
@@ -2544,6 +2578,9 @@ watch(modalShow6, (newVal) => {
                 <n-button size="tiny" type="error" @click="showK(result['股票代码'],result['股票名称'])"> 日K</n-button>
                 <n-button size="tiny" type="error" v-if="result['买一报价']>0"
                           @click="showMoney(result['股票代码'],result['股票名称'])"> 资金
+                </n-button>
+                <n-button size="tiny" type="warning"
+                          @click="showIndustryChainAnalysis(result['股票代码'],result['股票名称'])"> 产业链
                 </n-button>
                 <n-button size="tiny" type="success" @click="search(result['股票代码'],result['股票名称'])"> 详情
                 </n-button>
@@ -2769,12 +2806,15 @@ watch(modalShow6, (newVal) => {
         </n-gradient-text>
       </n-flex>
       <n-flex justify="space-between" style="margin-bottom: 10px">
-        <n-select style="width: 31%" v-model:value="data.aiConfigId" label-field="name" value-field="ID"
+        <n-select style="width: 23%" v-model:value="data.aiConfigId" label-field="name" value-field="ID"
                   :options="aiConfigs" placeholder="请选择AI模型服务配置"/>
-        <n-select style="width: 31%" v-model:value="data.sysPromptId" label-field="name" value-field="ID"
+        <n-select style="width: 23%" v-model:value="data.sysPromptId" label-field="name" value-field="ID"
                   :options="sysPromptOptions" placeholder="请选择系统提示词"/>
-        <n-select style="width: 31%" v-model:value="data.question" label-field="name" value-field="content"
+        <n-select style="width: 23%" v-model:value="data.question" label-field="name" value-field="content"
                   :options="userPromptOptions" placeholder="请选择用户提示词"/>
+        <n-select style="width: 23%" v-model:value="selectedSkillIds"
+                  :options="skillOptions" placeholder="选择技能（可多选）"
+                  multiple clearable/>
       </n-flex>
       <n-flex justify="right">
         <n-input v-model:value="data.question" style="text-align: left" clearable
@@ -2830,6 +2870,17 @@ watch(modalShow6, (newVal) => {
       @update:costPrice="handleCostPriceUpdate"
     />
   </n-modal>
+  <n-modal v-model:show="modalShow7" :title="'['+data.name+']产业链深度分析'" preset="card"
+           style="width: 80vw;max-width: 1400px;min-width: 680px;">
+    <n-spin :show="data.industryChainLoading">
+      <template #description>
+        AI 正在深度分析产业链结构，梳理上下游核心公司，请耐心等待...
+      </template>
+      <MdPreview ref="industryPreviewRef" id="industry-chain-preview"
+                 style="height: 68vh;max-height: calc(100vh - 160px);text-align: left;overflow-y: auto;"
+                 :modelValue="data.industryChainResult" :theme="theme"/>
+    </n-spin>
+  </n-modal>
 </template>
 
 <style scoped>
@@ -2839,6 +2890,37 @@ watch(modalShow6, (newVal) => {
 
 .md-editor-preview p {
   text-align: left !important;
+}
+
+/* 产业链报告增强样式 */
+#industry-chain-preview-wrapper :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+}
+#industry-chain-preview-wrapper :deep(th) {
+  background: var(--n-color-target);
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 8px 10px;
+}
+#industry-chain-preview-wrapper :deep(td) {
+  padding: 6px 10px;
+  vertical-align: top;
+}
+#industry-chain-preview-wrapper :deep(.md-editor-code-block) {
+  max-height: none;
+  overflow: visible;
+}
+#industry-chain-preview-wrapper :deep(.md-editor-code) {
+  background: var(--n-color-embedded) !important;
+}
+#industry-chain-preview-wrapper :deep(blockquote) {
+  border-left: 4px solid var(--n-color-target);
+  background: var(--n-color-embedded);
+  padding: 8px 16px;
+  margin: 12px 0;
 }
 
 /* 添加闪烁效果的CSS类 */

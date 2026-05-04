@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -150,8 +151,16 @@ func (a *app) getPrompts(w http.ResponseWriter, r *http.Request) {
 	if !requireVip2(w) {
 		return
 	}
+	
 	name := strings.TrimSpace(r.URL.Query().Get("name"))
 	promptType := strings.TrimSpace(r.URL.Query().Get("type"))
+	
+	// 验证输入参数，防止路径遍历或其他非法字符
+	if !isValidParam(name) || !isValidParam(promptType) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid parameter"})
+		return
+	}
+	
 	res := data.NewPromptTemplateApi().GetPromptTemplates(name, promptType)
 	writeJSON(w, http.StatusOK, res)
 }
@@ -163,6 +172,13 @@ func (a *app) session(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		sessionId := r.URL.Query().Get("sessionId")
+		
+		// 验证 sessionId 是否符合预期格式
+		if sessionId != "" && !isValidSessionId(sessionId) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid session id"})
+			return
+		}
+		
 		res, err := data.GetAiAssistantSession(sessionId)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -175,6 +191,13 @@ func (a *app) session(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 			return
 		}
+		
+		// 验证 session id
+		if !isValidSessionId(req.SessionId) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid session id"})
+			return
+		}
+		
 		if err := data.SaveAiAssistantSession(req.SessionId, req.Messages); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -359,13 +382,73 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+		// 从环境变量获取允许的源，如果没有则默认为开发环境的地址
+		allowedOrigin := os.Getenv("AI_ASSISTANT_ALLOWED_ORIGIN")
+		if allowedOrigin == "" {
+			allowedOrigin = "http://localhost:5173"
+		}
+		
+		// 验证请求来源是否在允许列表中
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			if isValidOrigin(origin, allowedOrigin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+		} else {
+			// 如果没有 Origin 头，设置默认值
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		}
+		
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isValidOrigin 验证请求来源是否合法
+func isValidOrigin(requestedOrigin, allowedOrigin string) bool {
+	// 支持多个允许的源，用逗号分隔
+	allowedOrigins := strings.Split(allowedOrigin, ",")
+	for _, origin := range allowedOrigins {
+		origin = strings.TrimSpace(origin)
+		if origin == "*" || requestedOrigin == origin {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidParam 验证参数是否合法
+func isValidParam(param string) bool {
+	if param == "" {
+		return true // 空值是允许的
+	}
+	
+	// 检查长度限制
+	if len(param) > 100 {
+		return false
+	}
+	
+	// 验证只包含字母数字和基本标点符号
+	validRegex := regexp.MustCompile(`^[a-zA-Z0-9\u4e00-\u9fa5 _\-.,!?;:]*$`)
+	return validRegex.MatchString(param)
+}
+
+// isValidSessionId 验证session id是否合法
+func isValidSessionId(sessionId string) bool {
+	if sessionId == "" {
+		return true // 空值是允许的
+	}
+	
+	// 验证sessionId格式，例如UUID格式或数字
+	uuidRegex := regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`)
+	numRegex := regexp.MustCompile(`^\d+$`)
+	
+	return uuidRegex.MatchString(sessionId) || numRegex.MatchString(sessionId)
 }

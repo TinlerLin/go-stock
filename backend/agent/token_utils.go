@@ -52,17 +52,32 @@ func estimateMessagesTokens(messages []*schema.Message) int {
 	return total
 }
 
-func getMaxInputTokens(maxTokens int) int {
+func getMaxInputTokens(maxTokens int, toolCount int) int {
 	if maxTokens <= 0 {
 		return 120000
 	}
 	availableTokens := int(float64(maxTokens) * safetyMargin)
-	reserved := toolsTokenReserve + skillPromptReserve + reactLoopReserve
+	toolReserve := estimateToolTokens(toolCount)
+	reserved := toolReserve + skillPromptReserve + reactLoopReserve
 	result := availableTokens - reserved
 	if result < 4000 {
 		result = 4000
 	}
 	return result
+}
+
+func estimateToolTokens(toolCount int) int {
+	if toolCount <= 0 {
+		return toolsTokenReserve
+	}
+	estimated := toolCount * 200
+	if estimated < 2000 {
+		estimated = 2000
+	}
+	if estimated > toolsTokenReserve {
+		estimated = toolsTokenReserve
+	}
+	return estimated
 }
 
 func trimHistoryMessages(historyMessages []*schema.Message, maxTokens int) []*schema.Message {

@@ -36,7 +36,7 @@ export function CalculateNextRunTime(arg1:string):Promise<string>;
 
 export function CalculateNextRunTimes(arg1:string,arg2:number):Promise<Array<string>>;
 
-export function ChatWithAgent(arg1:string,arg2:number,arg3:any,arg4:boolean,arg5:number,arg6:boolean,arg7:string):Promise<void>;
+export function ChatWithAgent(arg1:string,arg2:number,arg3:any,arg4:boolean,arg5:number,arg6:boolean,arg7:string,arg8:Array<number>):Promise<void>;
 
 export function CheckFrequentTrading(arg1:string):Promise<Record<string, any>>;
 
@@ -198,6 +198,8 @@ export function GetStockEastMoneyKLine(arg1:string,arg2:string,arg3:string,arg4:
 
 export function GetStockEastMoneyKLinePage(arg1:string,arg2:string,arg3:string,arg4:number,arg5:string):Promise<any>;
 
+export function GetStockIndustryChainAnalysis(arg1:string,arg2:string):Promise<string>;
+
 export function GetStockKLine(arg1:string,arg2:string,arg3:number):Promise<any>;
 
 export function GetStockKLinePageWithFallback(arg1:string,arg2:string,arg3:string,arg4:number,arg5:string):Promise<data.KLineSourceResult>;
@@ -278,7 +280,7 @@ export function IsUSTradingTime():Promise<boolean>;
 
 export function LongTigerRank(arg1:string):Promise<any>;
 
-export function NewChatStream(arg1:string,arg2:string,arg3:string,arg4:number,arg5:any,arg6:boolean,arg7:boolean):Promise<void>;
+export function NewChatStream(arg1:string,arg2:string,arg3:string,arg4:number,arg5:any,arg6:boolean,arg7:boolean,arg8:Array<number>):Promise<void>;
 
 export function NewsPush(arg1:any):Promise<void>;
 

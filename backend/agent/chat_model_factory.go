@@ -108,9 +108,9 @@ func parseAccessSecret(apiKey string) (ak, sk string) {
 func ptrFloat32(v float32) *float32 { return &v }
 func ptrBool(v bool) *bool          { return &v }
 
-// createChatModel 按 Eino 生态组件路由（参见 https://www.cloudwego.io/zh/docs/eino/ecosystem_integration/chat_model/ ）
+// CreateChatModel 按 Eino 生态组件路由（参见 https://www.cloudwego.io/zh/docs/eino/ecosystem_integration/chat_model/ ）
 // 未命中专用实现时回退到 OpenAI 兼容 ChatModel（硅基流动、LM Studio、Azure OpenAI 等）。
-func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCallingChatModel, error) {
+func CreateChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCallingChatModel, error) {
 	baseLower := strings.ToLower(normalizeBaseURL(aiConfig.BaseUrl))
 	temperature := float32(aiConfig.Temperature)
 	timeout := time.Duration(aiConfig.TimeOut) * time.Second
@@ -123,7 +123,7 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 	}
 
 	p := detectChatModelProvider(baseLower, aiConfig.ModelName)
-	logger.SugaredLogger.Infof("createChatModel provider=%d base=%q model=%q", p, aiConfig.BaseUrl, aiConfig.ModelName)
+	logger.SugaredLogger.Infof("CreateChatModel provider=%d base=%q model=%q", p, aiConfig.BaseUrl, aiConfig.ModelName)
 
 	switch p {
 	case providerVolcArk:

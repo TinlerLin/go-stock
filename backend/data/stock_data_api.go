@@ -16,6 +16,8 @@ import (
 	"io"
 	"io/ioutil"
 	url2 "net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -34,6 +36,12 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/plugin/soft_delete"
 )
+
+// isValidJSON 验证字节数组是否为有效的JSON
+func isValidJSON(data []byte) bool {
+	var js json.RawMessage
+	return json.Unmarshal(data, &js) == nil
+}
 
 const sinaStockUrl = "http://hq.sinajs.cn/rn=%d&list=%s"
 const txStockUrl = "http://qt.gtimg.cn/?_=%d&q=%s"
@@ -332,8 +340,22 @@ func (receiver StockDataApi) GetStockBaseInfo() {
 		}).
 		SetResult(res).
 		Post(tushareApiUrl)
-	//logger.SugaredLogger.Infof("GetStockBaseInfo %s", string(resp.Body()))
-	ioutil.WriteFile("stock_basic.json", resp.Body(), 0666)
+	
+	// 验证响应内容，确保是有效的JSON数据
+	body := resp.Body()
+	if !isValidJSON(body) {
+		logger.SugaredLogger.Error("响应不是有效的JSON数据")
+		return
+	}
+	
+	// 使用安全路径写入文件
+	safePath := filepath.Join("data", "stock_basic.json")
+	err = os.MkdirAll("data", 0755) // 确保目录存在
+	if err != nil {
+		logger.SugaredLogger.Errorf("创建数据目录失败: %v", err)
+		return
+	}
+	ioutil.WriteFile(safePath, body, 0644)
 	//logger.SugaredLogger.Infof("GetStockBaseInfo %+v", res)
 	if err != nil {
 		logger.SugaredLogger.Error(err.Error())
@@ -344,25 +366,23 @@ func (receiver StockDataApi) GetStockBaseInfo() {
 		return
 	}
 	for _, item := range res.Data.Items {
-		stock := &StockBasic{}
 		data := map[string]any{}
 		for _, field := range strings.Split(fields, ",") {
-			//logger.SugaredLogger.Infof("field: %s", field)
 			idx := slice.IndexOf(res.Data.Fields, field)
 			if idx == -1 {
 				continue
 			}
 			data[field] = item[idx]
 		}
+		index := &IndexBasic{}
 		jsonData, _ := json.Marshal(data)
-		err := json.Unmarshal(jsonData, stock)
+		err := json.Unmarshal(jsonData, index)
 		if err != nil {
 			continue
 		}
-		stock.ID = 0
-		db.Dao.Model(&StockBasic{}).FirstOrCreate(stock, &StockBasic{TsCode: stock.TsCode}).Where("ts_code = ?", stock.TsCode).Updates(stock)
+		index.ID = 0
+		db.Dao.Model(&IndexBasic{}).FirstOrCreate(index, &IndexBasic{TsCode: index.TsCode}).Where("ts_code = ?", index.TsCode).Updates(index)
 	}
-
 }
 
 func (receiver StockDataApi) GetStockCodeRealTimeData(StockCodes ...string) (*[]StockInfo, error) {

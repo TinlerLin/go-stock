@@ -293,7 +293,7 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 	return ch
 }
 
-func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptId *int, tools []Tool, thinking bool) <-chan map[string]any {
+func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptId *int, tools []Tool, thinking bool, skillPrompt string) <-chan map[string]any {
 	ch := make(chan map[string]any, 512)
 
 	defer func() {
@@ -319,6 +319,10 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 		}
 		if sysPrompt == "" {
 			sysPrompt = o.Prompt
+		}
+
+		if skillPrompt != "" {
+			sysPrompt = sysPrompt + "\n\n" + skillPrompt
 		}
 
 		msg := []map[string]interface{}{

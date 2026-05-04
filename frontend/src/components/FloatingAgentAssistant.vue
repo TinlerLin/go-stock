@@ -272,6 +272,21 @@
                     class="chat-footer-agent-mode-select"
                   />
                 </div>
+                <div class="chat-footer-skill">
+                  <NSelect
+                    v-model:value="selectedSkillIds"
+                    :options="skillOptions"
+                    size="small"
+                    multiple
+                    clearable
+                    to="body"
+                    placement="top-start"
+                    placeholder="选择技能"
+                    :consistent-menu-width="false"
+                    :menu-props="{ style: { zIndex: 10002 } }"
+                    class="chat-footer-skill-select"
+                  />
+                </div>
               </div>
               <div class="chat-footer-input">
                 <NInput
@@ -333,7 +348,8 @@ import {
   ShareText,
   AbortChatWithAgent,
   SaveAIResponseResult,
-  SaveImage
+  SaveImage,
+  GetAllSkills
 } from '../../wailsjs/go/main/App'
 import { EventsOff, EventsOn } from '../../wailsjs/runtime'
 import { MdPreview } from 'md-editor-v3'
@@ -393,6 +409,8 @@ const agentModeOptions = [
   { label: '⚡ 快速模式', value: 'react' },
   { label: '🧠 规划模式', value: 'plan_execute' },
 ]
+const skillOptions = ref([])
+const selectedSkillIds = ref([])
 
 watch(agentMode, (val) => {
   if (val === 'react') showHint('⚡ 快速模式推荐使用DeepSeek最新版')
@@ -877,7 +895,7 @@ function sendMessage() {
     }
     scrollToBottom()
   })
-  ChatWithAgent(text, configId, sysPromptId.value, memoryMode.value, memoryCount.value, thinkingMode.value, agentMode.value === 'auto' ? '' : agentMode.value)
+  ChatWithAgent(text, configId, sysPromptId.value, memoryMode.value, memoryCount.value, thinkingMode.value, agentMode.value === 'auto' ? '' : agentMode.value, selectedSkillIds.value)
 }
 
 function startNewChat() {
@@ -1181,9 +1199,20 @@ function loadPromptTemplates() {
   })
 }
 
+function loadSkills() {
+  GetAllSkills().then(res => {
+    const list = Array.isArray(res) ? res : []
+    skillOptions.value = list.filter(s => s.Enable || s.enable).map(s => ({
+      label: (s.Name ?? s.name ?? '') + (s.Category ?? s.category ? ' [' + (s.Category ?? s.category) + ']' : ''),
+      value: s.ID ?? s.id
+    }))
+  })
+}
+
 watch(panelVisible, (v) => {
   if (v) {
     loadPromptTemplates()
+    loadSkills()
     nextTick(scrollToBottom)
   }
 })
@@ -1220,6 +1249,7 @@ onMounted(() => {
     }
   })
   loadPromptTemplates()
+  loadSkills()
 })
 
 watch(aiConfigId, (newId) => {
@@ -1849,6 +1879,9 @@ onBeforeUnmount(() => {
 }
 .chat-footer-agent-mode-select {
   width: 120px;
+}
+.chat-footer-skill-select {
+  width: 150px;
 }
 .chat-footer-memory-count .n-select {
   width: 100%;

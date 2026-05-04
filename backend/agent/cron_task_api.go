@@ -253,7 +253,7 @@ func (a *CronTaskApi) executeStockAnalysis(ctx context.Context, task *models.Cro
 	prompt = data.NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
 	var tools []data.Tool
 	tools = data.Tools(tools)
-	msgs := data.NewDeepSeekOpenAi(ctx, params.AiConfigId).NewChatStream(params.StockName, data.ConvertTushareCodeToStockCode(params.StockCode), prompt, &params.SysPromptId, tools, params.Thinking)
+	msgs := data.NewDeepSeekOpenAi(ctx, params.AiConfigId).NewChatStream(params.StockName, data.ConvertTushareCodeToStockCode(params.StockCode), prompt, &params.SysPromptId, tools, params.Thinking, "")
 	content := &strings.Builder{}
 	for msg := range msgs {
 		if v, ok := msg["content"].(string); ok {
@@ -355,7 +355,7 @@ func (a *CronTaskApi) executeMarketAnalysis(ctx context.Context, task *models.Cr
 	prompt = data.NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
 	content := &strings.Builder{}
 
-	ch := NewStockAiAgentApi().ChatWithContext(ctx, prompt, params.AiConfigId, &params.SysPromptId, false, 0, false, params.AgentMode)
+	ch := NewStockAiAgentApi().ChatWithContext(ctx, prompt, params.AiConfigId, &params.SysPromptId, false, 0, false, params.AgentMode, nil)
 	for msg := range ch {
 		if msg.ReasoningContent != "" {
 			content.WriteString(msg.ReasoningContent)

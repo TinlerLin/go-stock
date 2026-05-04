@@ -843,18 +843,6 @@ func GetAllDataTools() []tool.BaseTool {
 	))
 
 	tools = append(tools, NewDataToolWrapper(
-		"GetCurrentTime",
-		"获取当前本地时间（含星期几）及全球市场开盘状态",
-		map[string]*schema.ParameterInfo{},
-		func(args string) (string, error) {
-			now := time.Now()
-			weekday := data.WeekdayCN(now.Weekday())
-			marketStatus := data.NewMarketNewsApi().GlobalStockIndexesReadable(30)
-			return "当前本地时间是：" + now.Format("2006-01-02 15:04:05") + " " + weekday + "\n\n" + marketStatus, nil
-		},
-	))
-
-	tools = append(tools, NewDataToolWrapper(
 		"GetMarketData",
 		"获取市场行情数据，包括指数行情、上涨/下跌/涨停/跌停家数、涨跌分布和今日申购信息",
 		map[string]*schema.ParameterInfo{},

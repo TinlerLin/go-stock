@@ -85,9 +85,9 @@ function updateTab(name) {
       <n-tab-pane name="MCP服务">
         <MCPServiceManager/>
       </n-tab-pane>
-<!--      <n-tab-pane name="技能管理">-->
-<!--        <SkillManager/>-->
-<!--      </n-tab-pane>-->
+      <n-tab-pane name="技能管理">
+        <SkillManager/>
+      </n-tab-pane>
     </n-tabs>
   </n-card>
 </template>

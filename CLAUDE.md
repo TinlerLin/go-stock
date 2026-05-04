@@ -4,11 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Development Commands
 
+### One-Click Production Build
+
+```bash
+wails build
+```
+
+Compiles Go backend + Vue frontend → single portable executable at `build/bin/go-stock.exe`.
+
 ### Wails (Desktop App)
 - `wails dev` — Start in development mode (hot-reload Go + Vite dev server on :5173)
 - `wails build` — Production build for current platform
+- `wails build --clean` — Clean build (clear cache first)
+- `wails build --platform windows/amd64` — Cross-platform build
 - `wails doctor` — Check Wails environment and dependencies
 - `wails build -ldflags "-X main.Version=v1.2.3 -X main.VersionCommit=abc1234 -X main.BuildKey=<hex-aes-key> -X main.OFFICIAL_STATEMENT=..."` — Production build with injected variables
+
+### Platform Build Scripts
+- `bash scripts/build-windows.sh` — Windows amd64 build
+- `bash scripts/build-macos.sh` — macOS (Intel + Apple Silicon)
+- `bash scripts/build-linux.sh` — Linux build
 
 ### Frontend (Vue 3 + Vite)
 - `cd frontend && npm install` — Install dependencies
@@ -18,6 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Go
 - `go test ./...` — Run all tests
 - `go test -v -run TestName ./backend/...` — Run a single test
+- `go build ./backend/...` — Compile backend packages only
 
 ### AI Assistant Web (standalone mode)
 - `cd ai-assistant-web/cmd/ai-assistant-web && go run main.go` — Run the web server standalone (port from `AI_ASSISTANT_WEB_ADDR` env, default `:18888`)

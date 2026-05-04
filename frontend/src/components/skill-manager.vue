@@ -57,10 +57,10 @@
     v-model:show="showCreateModal"
     preset="card"
     :title="editingSkill ? '编辑技能' : '添加技能'"
-    style="width: 900px; max-height: 85vh"
+    style="width: 900px; max-height: 90vh"
     :mask-closable="false"
   >
-    <n-scrollbar style="max-height: calc(85vh - 120px)">
+    <div class="modal-body">
     <n-form
       ref="formRef"
       :model="formData"
@@ -146,7 +146,7 @@
         />
       </n-form-item>
     </n-form>
-    </n-scrollbar>
+    </div>
 
     <template #footer>
       <n-space justify="end">
@@ -511,6 +511,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.modal-body {
+  max-height: calc(85vh - 160px);
+  overflow-y: auto;
+  padding-right: 8px;
+}
 :deep(.md-editor) {
   text-align: left;
 }

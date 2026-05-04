@@ -195,6 +195,41 @@
 
 
 
+## 🔨 开发构建
+
+### 环境要求
+- Go 1.26+
+- Node.js 18+
+- Wails CLI v2.11.0（[安装指南](https://wails.io/docs/gettingstarted/installation)）
+
+### 一键编译打包
+
+```bash
+# 当前平台（Windows 开发环境默认）
+wails build
+
+# 指定平台/架构
+wails build --platform windows/amd64      # Windows x64
+wails build --platform darwin/amd64       # macOS Intel
+wails build --platform darwin/arm64       # macOS Apple Silicon
+
+# 清理缓存后构建
+wails build --clean
+
+# 开发模式（热重载）
+wails dev
+```
+
+构建产物默认输出至 `build/bin/` 目录。
+
+### 平台构建脚本
+
+| 脚本 | 用途 |
+|------|------|
+| `bash scripts/build-windows.sh` | Windows amd64 |
+| `bash scripts/build-macos.sh` | macOS（Intel + Apple Silicon） |
+| `bash scripts/build-linux.sh` | Linux |
+
 ## License
 [GNU GPLv3](LICENSE)
 

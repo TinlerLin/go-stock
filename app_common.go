@@ -169,7 +169,7 @@ func (a *App) GetAllStocks(page int, pageSize int, name string, technicalIndicat
 	return data.NewStockDataApi().GetAllStocks(page, pageSize, name, technicalIndicators)
 }
 
-func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string) {
+func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string, skillIds []uint) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.SugaredLogger.Errorf("ChatWithAgent panic: %v", r)
@@ -190,7 +190,7 @@ func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int, m
 		a.agentMu.Unlock()
 	}()
 
-	ch := agent.NewStockAiAgentApi().ChatWithContext(ctx, question, aiConfigId, sysPromptId, memoryMode, memoryCount, thinkingMode, agentMode)
+	ch := agent.NewStockAiAgentApi().ChatWithContext(ctx, question, aiConfigId, sysPromptId, memoryMode, memoryCount, thinkingMode, agentMode, skillIds)
 	for msg := range ch {
 		runtime.EventsEmit(a.ctx, "agent-message", agentMessageToFrontendMap(msg))
 	}

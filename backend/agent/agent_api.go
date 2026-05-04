@@ -21,6 +21,8 @@ import (
 type StockAiAgent struct {
 	instance  *AgentInstance
 	sessionID string
+	aiConfig  data.AIConfig
+	question  string
 }
 
 func NewStockAiAgentApi() *StockAiAgent {
@@ -67,14 +69,16 @@ func (receiver StockAiAgent) newStockAiAgent(ctx *context.Context, aiConfigId in
 	return &StockAiAgent{
 		instance:  agentInstance,
 		sessionID: sessionID,
+		aiConfig:  *aiConfig,
+		question:  question,
 	}
 }
 
-func (receiver StockAiAgent) Chat(question string, aiConfigId int, sysPromptId *int) chan *schema.Message {
-	return receiver.ChatWithContext(context.Background(), question, aiConfigId, sysPromptId, true, 20, false, "")
+func (receiver StockAiAgent) Chat(question string, aiConfigId int, sysPromptId *int, skillIds []uint) chan *schema.Message {
+	return receiver.ChatWithContext(context.Background(), question, aiConfigId, sysPromptId, true, 20, false, "", skillIds)
 }
 
-func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string) chan *schema.Message {
+func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string, skillIds []uint) chan *schema.Message {
 	ch := make(chan *schema.Message, 1024)
 
 	go func() {
@@ -119,13 +123,18 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 			sysPrompt = data.NewPromptTemplateApi().GetPromptTemplateByID(*sysPromptId)
 		}
 
+		skillPrompt := BuildSkillPrompt(question, skillIds)
+		if skillPrompt != "" {
+			sysPrompt = sysPrompt + "\n\n" + skillPrompt
+		}
+
 		settingConfig := data.GetSettingConfig()
 		aiConfig, _ := lo.Find(settingConfig.AiConfigs, func(item *data.AIConfig) bool {
 			return uint(aiConfigId) == item.ID
 		})
 		maxInputTokens := 0
 		if aiConfig != nil {
-			maxInputTokens = getMaxInputTokens(aiConfig.MaxTokens)
+			maxInputTokens = getMaxInputTokens(aiConfig.MaxTokens, stockAiAgent.instance.ToolCount)
 		}
 
 		sysPromptTokens := estimateTokens(sysPrompt)
@@ -430,13 +439,16 @@ func tryPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []
 }
 
 func createFallbackReactAgent(ctx context.Context, stockAiAgent *StockAiAgent) *react.Agent {
-	// 从 PlanExecute Agent 中提取原始配置来创建 React Agent
-	// 这里需要重新创建，因为我们没有保存原始的 chatModel 和 tools
+	logger.SugaredLogger.Infof("降级：从 PlanExecute 切换到 React 模式, question=%q", stockAiAgent.question)
 
-	// 为了简化，我们返回 nil，让上层处理
-	// 在实际生产环境中，应该保存原始配置或重新创建
-	logger.SugaredLogger.Warnf("暂不支持降级到 React 模式，需要重新实现")
-	return nil
+	instance := GetStockAiAgent(&ctx, stockAiAgent.aiConfig, stockAiAgent.question, string(AgentModeReact))
+	if instance == nil || instance.ReactAgent == nil {
+		logger.SugaredLogger.Errorf("降级失败：无法创建 React Agent")
+		return nil
+	}
+
+	logger.SugaredLogger.Infof("降级成功：React Agent 已创建")
+	return instance.ReactAgent
 }
 
 func runReactWithAgent(ctx context.Context, reactAgent *react.Agent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService, historyMessages []*schema.Message, sysPrompt string, question string) {

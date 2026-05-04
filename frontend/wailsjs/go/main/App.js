@@ -62,8 +62,8 @@ export function CalculateNextRunTimes(arg1, arg2) {
   return window['go']['main']['App']['CalculateNextRunTimes'](arg1, arg2);
 }
 
-export function ChatWithAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function ChatWithAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function CheckFrequentTrading(arg1) {
@@ -386,6 +386,10 @@ export function GetStockEastMoneyKLinePage(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['GetStockEastMoneyKLinePage'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function GetStockIndustryChainAnalysis(arg1, arg2) {
+  return window['go']['main']['App']['GetStockIndustryChainAnalysis'](arg1, arg2);
+}
+
 export function GetStockKLine(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetStockKLine'](arg1, arg2, arg3);
 }
@@ -546,8 +550,8 @@ export function LongTigerRank(arg1) {
   return window['go']['main']['App']['LongTigerRank'](arg1);
 }
 
-export function NewChatStream(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['NewChatStream'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function NewChatStream(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['NewChatStream'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function NewsPush(arg1) {

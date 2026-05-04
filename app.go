@@ -820,7 +820,7 @@ func (a *App) AddCronTask(follow data.FollowedStock) func() {
 	return func() {
 		go runtime.EventsEmit(a.ctx, "warnMsg", "开始自动分析"+follow.Name+"_"+follow.StockCode)
 		ai := data.NewDeepSeekOpenAi(a.ctx, follow.AiConfigId)
-		msgs := ai.NewChatStream(follow.Name, follow.StockCode, "", nil, a.AiTools, true)
+		msgs := ai.NewChatStream(follow.Name, follow.StockCode, "", nil, a.AiTools, true, "")
 		var res strings.Builder
 
 		chatId := ""
@@ -1643,12 +1643,13 @@ func (a *App) SendDingDingMessageByType(message string, stockCode string, msgTyp
 	return data.NewDingDingAPI().SendDingDingMessage(message)
 }
 
-func (a *App) NewChatStream(stock, stockCode, question string, aiConfigId int, sysPromptId *int, enableTools bool, think bool) {
+func (a *App) NewChatStream(stock, stockCode, question string, aiConfigId int, sysPromptId *int, enableTools bool, think bool, skillIds []uint) {
+	skillPrompt := agent.BuildSkillPrompt(question, skillIds)
 	var msgs <-chan map[string]any
 	if enableTools {
-		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, a.AiTools, think)
+		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, a.AiTools, think, skillPrompt)
 	} else {
-		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, []data.Tool{}, think)
+		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, []data.Tool{}, think, skillPrompt)
 	}
 	for msg := range msgs {
 		runtime.EventsEmit(a.ctx, "newChatStream", msg)
@@ -2225,6 +2226,209 @@ func (a *App) GetStockMoneyTrendByDay(stockCode string, days int) []map[string]a
 	return res
 }
 
+// GetStockIndustryChainAnalysis 使用 AI 深度分析生成个股产业链完整报告，包含核心上下游公司。
+func (a *App) GetStockIndustryChainAnalysis(stockCode, stockName string) string {
+	stockCode = strings.TrimSpace(stockCode)
+	stockName = strings.TrimSpace(stockName)
+	if stockCode == "" && stockName == "" {
+		return "参数错误：股票代码或股票名称不能为空。"
+	}
+
+	api := data.NewStockDataApi()
+	tsCode := stockCode
+	if tsCode != "" && !strings.Contains(tsCode, ".") {
+		tsCode = data.ConvertStockCodeToTushareCode(tsCode)
+	}
+
+	var basic data.StockBasic
+	if tsCode != "" {
+		db.Dao.Model(&data.StockBasic{}).Where("ts_code = ?", tsCode).First(&basic)
+	}
+	if basic.TsCode == "" && stockCode != "" {
+		symbol := strings.ToLower(strings.TrimSpace(stockCode))
+		prefixes := []string{"sh", "sz", "bj", "hk", "us", "gb_"}
+		for _, p := range prefixes {
+			if strings.HasPrefix(symbol, p) {
+				symbol = strings.TrimPrefix(symbol, p)
+				break
+			}
+		}
+		db.Dao.Model(&data.StockBasic{}).Where("symbol = ?", symbol).First(&basic)
+	}
+	if basic.TsCode == "" && stockName != "" {
+		db.Dao.Model(&data.StockBasic{}).Where("name = ?", stockName).First(&basic)
+	}
+
+	if basic.Name != "" {
+		stockName = basic.Name
+	}
+	if basic.TsCode != "" {
+		tsCode = basic.TsCode
+	}
+
+	allInfo := api.GetStockInfoByCode(tsCode)
+	conceptResp := api.GetStockConceptInfo(tsCode)
+	sectionBiz := data.NewTdxKLineApi().GetF10CategoryContent(tsCode, "经营分析")
+	if sectionBiz == nil || strings.TrimSpace(sectionBiz.Content) == "" {
+		sectionBiz = data.NewTdxKLineApi().GetF10CategoryContent(tsCode, "公司概况")
+	}
+
+	boardSet := map[string]struct{}{}
+	conceptSet := map[string]struct{}{}
+	addTag := func(m map[string]struct{}, v string) {
+		v = strings.TrimSpace(v)
+		if v == "" || v == "-" {
+			return
+		}
+		m[v] = struct{}{}
+	}
+	for _, item := range conceptResp.Result.Data {
+		name := strings.TrimSpace(item.BOARDNAME)
+		if name == "" {
+			continue
+		}
+		if strings.Contains(name, "概念") {
+			addTag(conceptSet, name)
+		} else {
+			addTag(boardSet, name)
+		}
+	}
+	for _, v := range splitTags(allInfo.CONCEPT) {
+		addTag(conceptSet, v)
+	}
+
+	industry := strings.TrimSpace(basic.Industry)
+	if industry == "" {
+		industry = strings.TrimSpace(allInfo.INDUSTRY)
+	}
+	if industry == "" {
+		industry = "未识别"
+	}
+
+	boardList := mapKeysSorted(boardSet)
+	conceptList := mapKeysSorted(conceptSet)
+	bizText := normalizeParagraph(strings.TrimSpace(sectionBiz.Content))
+	if bizText == "" {
+		bizText = "未获取到主营/核心业务描述，可稍后重试。"
+	}
+
+	displayName := stockName
+	if displayName == "" {
+		displayName = strings.TrimSpace(allInfo.SECURITYNAMEABBR)
+	}
+	if displayName == "" {
+		displayName = strings.TrimSpace(basic.Name)
+	}
+	if displayName == "" {
+		displayName = stockCode
+	}
+
+	// 收集财务摘要数据，丰富 AI 分析输入
+	financeSummary := ""
+	if fi := data.NewTdxKLineApi().GetFinanceInfo(tsCode); fi != nil {
+		financeSummary = fmt.Sprintf(
+			"每股收益：%.4f | 每股净资产：%.4f | 营收：%.2f万 | 净利润：%.2f万 | 净资产：%.2f万 | 总资产：%.2f万",
+			fi.EPS, fi.NetAssetsPerShare, fi.OperatingRevenue, fi.NetProfit, fi.TotalEquity, fi.TotalAssets,
+		)
+	}
+
+	// 尝试使用 AI 深度生成产业链报告
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+
+	aiReport, err := agent.GenerateIndustryChainReport(ctx, agent.IndustryChainInput{
+		StockCode:      tsCode,
+		StockName:      displayName,
+		Industry:       industry,
+		BoardTags:      boardList,
+		ConceptTags:    conceptList,
+		BusinessDesc:   bizText,
+		FinanceSummary: financeSummary,
+	})
+	if err == nil && aiReport != "" {
+		return aiReport
+	}
+
+	logger.SugaredLogger.Warnf("AI 产业链报告生成失败，回退到模板模式: %v", err)
+
+	// 回退：模板化分析报告
+	bizTextTruncated := truncateText(bizText, 1800)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("## %s 产业链分析\n\n", displayName))
+	sb.WriteString(fmt.Sprintf("- 股票代码：`%s`\n", strings.TrimSpace(tsCode)))
+	sb.WriteString(fmt.Sprintf("- 所处行业：%s\n", industry))
+	sb.WriteString(fmt.Sprintf("- 所属板块：%s\n", joinOrFallback(boardList, "未识别")))
+	sb.WriteString(fmt.Sprintf("- 关联概念：%s\n\n", joinOrFallback(conceptList, "未识别")))
+	sb.WriteString("### 核心产品/业务\n\n")
+	sb.WriteString(bizTextTruncated + "\n\n")
+	sb.WriteString("> 提示：AI 深度分析报告生成失败（可能未配置 AI 模型或网络异常），以下为模板化分析。\n\n")
+	sb.WriteString("### 产业链位置解读\n\n")
+	sb.WriteString("- 上游：重点关注原材料、关键设备与技术供给约束。\n")
+	sb.WriteString("- 中游：公司在行业中的产品定位、产能与成本控制能力。\n")
+	sb.WriteString("- 下游：终端需求景气度、政策催化与客户结构稳定性。\n\n")
+	sb.WriteString("### 风险提示\n\n")
+	sb.WriteString("- 板块轮动和市场风格切换会影响短期表现。\n")
+	sb.WriteString("- 主营业务描述来自公开资料抓取，建议结合最新公告和财报核验。\n")
+	return sb.String()
+}
+
+func splitTags(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}
+	}
+	replacer := strings.NewReplacer("；", ",", ";", ",", "|", ",", "/", ",", "、", ",")
+	raw = replacer.Replace(raw)
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func mapKeysSorted(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func joinOrFallback(items []string, fallback string) string {
+	if len(items) == 0 {
+		return fallback
+	}
+	return strings.Join(items, "、")
+}
+
+func normalizeParagraph(s string) string {
+	lines := strings.Split(strings.ReplaceAll(s, "\r", "\n"), "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func truncateText(s string, max int) string {
+	if max <= 0 {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "\n\n（内容较长，已截断展示）"
+}
+
 // OpenURL
 //
 //	@Description:  跨平台打开默认浏览器
@@ -2236,9 +2440,8 @@ func (a *App) OpenURL(url string) {
 
 // SaveImage
 //
-//	@Description: 跨平台保存图片
-//	@receiver a
-//	@param name
+//	@Description: // 跨平台保存image
+//	@param filename
 //	@param base64Data
 //	@return error
 func (a *App) SaveImage(name, base64Data string) string {
@@ -2254,6 +2457,46 @@ func (a *App) SaveImage(name, base64Data string) string {
 	})
 	if err != nil || filePath == "" {
 		return "文件路径,无法保存。"
+	}
+
+	// 验证并清理文件路径，防止路径遍历攻击
+	cleanPath := filepath.Clean(filePath)
+	
+	// 确保路径在用户文档目录或下载目录内，防止写入系统关键目录
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return "无法确定用户主目录，保存失败。"
+	}
+	
+	allowedBasePaths := []string{
+		filepath.Join(userHome, "Documents"),
+		filepath.Join(userHome, "Downloads"),
+		filepath.Join(userHome, "Desktop"),
+		filepath.Join(userHome, "Pictures"),
+	}
+	
+	isValidPath := false
+	for _, basePath := range allowedBasePaths {
+		relPath, err := filepath.Rel(basePath, cleanPath)
+		if err != nil {
+			continue
+		}
+		
+		// 检查相对路径是否以 .. 开头，如果是则表示路径超出了允许的基础路径
+		if !strings.HasPrefix(relPath, ".."+string(filepath.Separator)) && !strings.HasPrefix(relPath, "..") {
+			isValidPath = true
+			break
+		}
+	}
+	
+	if !isValidPath {
+		return "不允许的文件路径，保存失败。"
+	}
+	
+	// 确保文件扩展名为 .png
+	ext := strings.ToLower(filepath.Ext(cleanPath))
+	if ext != ".png" {
+		return "仅支持保存 PNG 格式文件。"
 	}
 
 	base64Data = strings.ReplaceAll(base64Data, " ", "+")
@@ -2276,11 +2519,11 @@ func (a *App) SaveImage(name, base64Data string) string {
 		return "文件内容异常,无法保存。" + err.Error()
 	}
 
-	err = os.WriteFile(filepath.Clean(filePath), decodeString, 0644)
+	err = os.WriteFile(cleanPath, decodeString, 0644)
 	if err != nil {
 		return "保存结果异常,无法保存。"
 	}
-	return filePath
+	return cleanPath
 }
 
 // SaveWordFile

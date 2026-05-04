@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"go-stock/backend/agent/tools"
 	"go-stock/backend/data"
@@ -36,9 +37,10 @@ type AgentInstance struct {
 	Mode       AgentMode
 	ReactAgent *react.Agent
 	AdkAgent   adk.ResumableAgent
+	ToolCount  int
 }
 
-func classifyComplexity(question string) AgentMode {
+func classifyComplexity(question string, preGroups map[tools.ToolGroup]bool) AgentMode {
 	lowerQ := strings.ToLower(question)
 
 	simplePatterns := []string{
@@ -79,7 +81,7 @@ func classifyComplexity(question string) AgentMode {
 	}
 
 	toolGroupCount := 0
-	groups := tools.ClassifyQuestion(question)
+	groups := preGroups
 	for range groups {
 		toolGroupCount++
 	}
@@ -97,14 +99,15 @@ func classifyComplexity(question string) AgentMode {
 
 func GetStockAiAgent(ctx *context.Context, aiConfig data.AIConfig, question string, agentMode string) *AgentInstance {
 	logger.SugaredLogger.Infof("GetStockAiAgent aiConfig: %v", aiConfig)
-	toolableChatModel, err := createChatModel(*ctx, aiConfig)
+	toolableChatModel, err := CreateChatModel(*ctx, aiConfig)
 	if err != nil {
 		logger.SugaredLogger.Error(err.Error())
 		return nil
 	}
 
-	//allTools := getAllTools()
-	allTools := getToolsByQuestion(question)
+	// Cache question classification to avoid duplicate ClassifyQuestion calls
+	groups := tools.ClassifyQuestion(question)
+	allTools := getToolsByQuestion(question, groups)
 
 	var mode AgentMode
 	switch AgentMode(agentMode) {
@@ -113,7 +116,7 @@ func GetStockAiAgent(ctx *context.Context, aiConfig data.AIConfig, question stri
 	case AgentModePlanExecute:
 		mode = AgentModePlanExecute
 	default:
-		mode = classifyComplexity(question)
+		mode = classifyComplexity(question, groups)
 	}
 
 	logger.SugaredLogger.Infof("Agent mode selected: %s (user=%q), question=%q, tools=%d", mode, agentMode, question, len(allTools))
@@ -140,7 +143,7 @@ func createReactAgent(ctx context.Context, chatModel model.ToolCallingChatModel,
 		ToolsConfig:      aiTools,
 		MaxStep:          len(allTools) + 5,
 		MessageRewriter: func(ctx context.Context, input []*schema.Message) []*schema.Message {
-			maxTokens := getMaxInputTokens(aiConfig.MaxTokens)
+			maxTokens := getMaxInputTokens(aiConfig.MaxTokens, len(allTools))
 			return compressMessages(input, maxTokens)
 		},
 		StreamToolCallChecker: func(ctx context.Context, modelOutput *schema.StreamReader[*schema.Message]) (bool, error) {
@@ -165,6 +168,7 @@ func createReactAgent(ctx context.Context, chatModel model.ToolCallingChatModel,
 	return &AgentInstance{
 		Mode:       AgentModeReact,
 		ReactAgent: agent,
+		ToolCount:  len(allTools),
 	}
 }
 
@@ -172,6 +176,7 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 	planner, err := planexecute.NewPlanner(ctx, &planexecute.PlannerConfig{
 		ToolCallingChatModel: chatModel,
 		GenInputFn:           genPlannerInput,
+		NewPlan:              newJSONPlan,
 	})
 	if err != nil {
 		logger.SugaredLogger.Errorf("创建Planner失败: %v", err)
@@ -200,6 +205,7 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 	replanner, err := planexecute.NewReplanner(ctx, &planexecute.ReplannerConfig{
 		ChatModel:  chatModel,
 		GenInputFn: genReplannerInput,
+		NewPlan:    newJSONPlan,
 	})
 	if err != nil {
 		logger.SugaredLogger.Errorf("创建Replanner失败: %v", err)
@@ -218,8 +224,9 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 	}
 
 	return &AgentInstance{
-		Mode:     AgentModePlanExecute,
-		AdkAgent: peAgent,
+		Mode:      AgentModePlanExecute,
+		AdkAgent:  peAgent,
+		ToolCount: len(allTools),
 	}
 }
 
@@ -277,24 +284,37 @@ func errorRecoveryMiddleware() compose.ToolMiddleware {
 	}
 }
 
-func buildSkillPrompt(question string) string {
+func BuildSkillPrompt(question string, skillIds []uint) string {
 	skills := data.NewSkillApi().GetEnabledSkills()
 	if len(skills) == 0 {
 		return ""
 	}
 
 	var matched []models.Skill
-	for _, skill := range skills {
-		if skill.TriggerKeywords == "" {
-			matched = append(matched, skill)
-			continue
+
+	if len(skillIds) > 0 {
+		idSet := make(map[uint]bool)
+		for _, id := range skillIds {
+			idSet[id] = true
 		}
-		keywords := strings.Split(skill.TriggerKeywords, ",")
-		for _, kw := range keywords {
-			kw = strings.TrimSpace(kw)
-			if kw != "" && strings.Contains(question, kw) {
+		for _, skill := range skills {
+			if idSet[skill.ID] {
 				matched = append(matched, skill)
-				break
+			}
+		}
+	} else {
+		for _, skill := range skills {
+			if skill.TriggerKeywords == "" {
+				matched = append(matched, skill)
+				continue
+			}
+			keywords := strings.Split(skill.TriggerKeywords, ",")
+			for _, kw := range keywords {
+				kw = strings.TrimSpace(kw)
+				if kw != "" && strings.Contains(question, kw) {
+					matched = append(matched, skill)
+					break
+				}
 			}
 		}
 	}
@@ -345,7 +365,7 @@ func getAllTools() []tool.BaseTool {
 	return allTools
 }
 
-func getToolsByQuestion(question string) []tool.BaseTool {
+func getToolsByQuestion(question string, preGroups map[tools.ToolGroup]bool) []tool.BaseTool {
 	var allTools []tool.BaseTool
 
 	allTools = append(allTools, tools.GetQueryStockCodeInfoTool())
@@ -365,11 +385,10 @@ func getToolsByQuestion(question string) []tool.BaseTool {
 		allTools = append(allTools, mcpTools...)
 	}
 
-	groups := tools.ClassifyQuestion(question)
-	filtered := tools.FilterToolsByGroups(allTools, groups)
+	filtered := tools.FilterToolsByGroups(allTools, preGroups)
 
 	logger.SugaredLogger.Infof("tool grouping: question=%q, matched_groups=%v, total=%d, filtered=%d",
-		question, groupNames(groups), len(allTools), len(filtered))
+		question, groupNames(preGroups), len(allTools), len(filtered))
 
 	return filtered
 }
@@ -961,6 +980,23 @@ func genExecutorInput(ctx context.Context, in *planexecute.ExecutionContext) ([]
 		return nil, err
 	}
 
+	// Parse plan steps for concise display (avoids sending full JSON on every executor call)
+	var planData struct {
+		Steps []string `json:"steps"`
+	}
+	if err := json.Unmarshal(planContent, &planData); err != nil {
+		planData.Steps = []string{in.Plan.FirstStep()}
+	}
+	var planSummary strings.Builder
+	currentStep := in.Plan.FirstStep()
+	for i, s := range planData.Steps {
+		marker := "  "
+		if s == currentStep {
+			marker = "▶ "
+		}
+		planSummary.WriteString(fmt.Sprintf("%s%d. %s\n", marker, i+1, s))
+	}
+
 	nSteps := len(in.ExecutedSteps)
 	var stepsContent strings.Builder
 	for i, s := range in.ExecutedSteps {
@@ -970,10 +1006,10 @@ func genExecutorInput(ctx context.Context, in *planexecute.ExecutionContext) ([]
 
 	question := extractUserQuestion(in.UserInput)
 
-	systemMsg := schema.SystemMessage(`按计划执行当前步骤，调用工具获取数据，给出简洁精准的分析结果。`)
+	systemMsg := schema.SystemMessage(`按计划执行当前步骤（▶ 标记），调用工具获取数据，给出简洁精准的分析结果。`)
 
-	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n当前计划: %s\n\n已完成步骤:\n%s\n\n请执行当前步骤: %s",
-		question, string(planContent), stepsContent.String(), in.Plan.FirstStep()))
+	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n执行计划:\n%s\n已完成步骤:\n%s\n请执行当前步骤: %s",
+		question, planSummary.String(), stepsContent.String(), currentStep))
 
 	return []adk.Message{systemMsg, userMsg}, nil
 }
